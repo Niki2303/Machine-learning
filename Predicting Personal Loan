@@ -1,0 +1,280 @@
+---
+title: "Thera Bank Problem"
+author: "Nikita"
+date: "24/08/2019"
+output:
+  html_document: default
+
+---
+
+```{r }
+setwd ("C:/Users/nikit/Documents/Analytics - Great Lakes/Mini Proj 4")
+getwd()
+##install.packages("pacman")
+
+library(rpart)
+library(rpart.plot)
+library(MLmetrics)
+library(InformationValue)
+
+##load the data in R console
+library(gdata)
+Data <- read.csv("Bank Personal Loan Dataset.csv")
+#BankLoan <- read.csv("Bank Personal Loan Dataset.csv", header = TRUE)
+##library(summarytools)
+##summarytools::view(dfSummary(Data))
+attach(Data)
+
+## Removing missing values
+colSums(is.na(Data))
+Data<- Data[complete.cases(Data),]
+dim(Data)
+```
+
+```{R}
+## Data Visualization
+par(mfrow = c(3,3))
+hist(Data$Age..in.years., main = "Age of the customer overall", xlab = "Age", ylab = "Frequency", xlim = c(30,60))
+hist(Income..in.K.month., main = "Income of overall group", xlab = "income", ylab = "Frequency", xlim = c(8,224))
+hist(Experience..in.years., main = "Experience of overall group", xlab = "Experience", ylab = "Frequency", xlim = c(-3,43))
+hist(Education, main = "Education of overall group", xlab = "Education", ylab = "Frequency", xlim = c(1,3))
+hist(Mortgage, main = "Mortgage of overall group", xlab = "Mortgage", ylab = "Frequency", xlim = c(0,635))
+hist(Personal.Loan, main = "Personal Loan of overall group", xlab = "Personal Loan", ylab = "Frequency", xlim = c(0,10))
+hist(CD.Account, main = "CD Account of overall group", xlab = "CDAccount", ylab = "Frequency", xlim = c(0,5))
+hist(Online, main = "Online of overall group", xlab = "Online", ylab = "Frequency", xlim = c(0,5))
+hist(CreditCard, main = "Credit card owned by overall group", xlab = "Credit card", ylab = "Frequency", xlim = c(0,5))
+
+par(mfrow = c(3,3))
+boxplot(Data$Age..in.years., main = "Age of the customer overall", xlab = "Age", ylab = "Frequency", horizontal = TRUE)
+boxplot(Income..in.K.month., main = "Income of overall group", xlab = "income", ylab = "Frequency", horizontal = TRUE)
+boxplot(Experience..in.years., main = "Experience of overall group", xlab = "Experience", ylab = "Frequency", horizontal = TRUE)
+boxplot(Education, main = "Education of overall group", xlab = "Education", ylab = "Frequency", horizontal = TRUE)
+boxplot(Mortgage, main = "Mortgage of overall group", xlab = "Mortgage", ylab = "Frequency", horizontal = TRUE)
+boxplot(Personal.Loan, main = "Personal Loan of overall group", xlab = "Personal Loan", ylab = "Frequency", horizontal = TRUE)
+boxplot(CD.Account, main = "CD Account of overall group", xlab = "CDAccount", ylab = "Frequency", horizontal = TRUE)
+boxplot(Online, main = "Online of overall group", xlab = "Online", ylab = "Frequency", horizontal = TRUE)
+boxplot(CreditCard, main = "Credit card owned by overall group", xlab = "Credit card", ylab = "Frequency", horizontal = TRUE)
+
+library(ggplot2)
+ggplot(Data, aes(x=Age..in.years., y=Personal.Loan)) + geom_point()
+personalLoan_Availed<-subset(Data,Data$Personal.Loan=="1")
+personalLoan_NotAvailed<-subset(Data,Data$Personal.Loan=="0")
+ggplot(personalLoan_Availed,aes(x=personalLoan_Availed$Age..in.years.,y=personalLoan_Availed$Education))+geom_point()
+ggplot(personalLoan_Availed,aes(x=personalLoan_Availed$Income..in.K.month.,y=personalLoan_Availed$Family.members))+geom_count()
+ggplot(personalLoan_Availed,aes(x=personalLoan_Availed$Income..in.K.month.,y=personalLoan_Availed$Family.members))+geom_col()
+
+ggplot(personalLoan_NotAvailed,aes(x=personalLoan_NotAvailed$Income..in.K.month.,y=personalLoan_NotAvailed$Family.members))+geom_col()
+ggplot(personalLoan_NotAvailed,aes(x=personalLoan_NotAvailed$Income..in.K.month.,y=personalLoan_NotAvailed$Family.members))+geom_point()
+
+
+```
+
+
+```{R}
+#splitting in training set and test set
+library(caTools)
+set.seed(1234)
+
+Data_split <- sample.split(Data, SplitRatio = 0.7)
+Train_Data <- subset(Data, split = TRUE)
+Test_Data <- subset(Data, split = FALSE)
+table(Data$Age..in.years.)
+##summarytools::view(dfSummary(Train_Data))
+prop.table(table(Data$Personal.Loan))
+
+
+#Exploratory Data Analysis
+summary(Data)
+str(Data)
+plot(Data)
+dim(Data)
+
+##Univariate Analysis
+colSums(is.na(Data))
+
+```
+
+We will now perform the CART modelling on Testing data set.
+
+```{R}
+
+#CART Models
+
+Cart.ctrl <- rpart.control(minsplit = 10,
+                           minbucket = 10,
+                           cp = 0,
+                           xval = 10)
+
+
+cart.model <- rpart(formula = Data$Personal.Loan~.,
+                    data = Data,
+                    method = "class",
+                    control = Cart.ctrl)
+
+print(cart.model)
+rpart.plot(cart.model)
+printcp(cart.model)
+plotcp(cart.model)
+pruned_tree <- prune(cart.model, cp = cart.model$cptable[which.min(cart.model$cptable[,"xerror"]),"CP"])
+printcp(pruned_tree)
+rpart.plot(pruned_tree)
+plot(pruned_tree, uniform = TRUE, main = "pruned classification tree")
+##text(pruned_tree, use.n = TRUE, all = TRUE, cex = 0.6, xpd = TRUE)
+prp(pruned_tree, faclen = 0, cex = 0.8, extra = 1)
+rpart.plot(pruned_tree)
+
+#Classification based on Training data
+Train_Data$predictedclass = predict(pruned_tree, Train_Data, type = "class")
+Test_Data$predictedclass = predict(pruned_tree, Test_Data, type = "class")
+
+#Confusion Matrix
+MLmetrics::ConfusionMatrix(Train_Data$predictedclass,Train_Data$Personal.Loan)
+MLmetrics::ConfusionMatrix(Test_Data$predictedclass,Test_Data$Personal.Loan)
+
+
+Train_Data$predictedprobability = predict(pruned_tree, Train_Data, type = "prob")
+Train_Data$ManualClass <- ifelse(Train_Data$predictedprobability[,2]>0.20,1,0)
+head(Train_Data)
+head(Test_Data)
+
+```
+
+
+```{R}
+## Scoring syntax 
+##?predict  
+Train_Data$predict.class <- predict(pruned_tree,Train_Data, type = "class")
+Train_Data$predict.score<- predict(pruned_tree,Train_Data, type = "prob")
+
+head(Test_Data)
+
+#Model Performance measures
+
+## deciling code 
+decile <- function(x){ 
+  deciles <- vector(length=10) 
+  for (i in seq(0.1,1,.1)){ 
+    deciles[i*10] <- quantile(x, i, na.rm=T) 
+  } 
+  return ( 
+    ifelse(x<deciles[1], 1, 
+           ifelse(x<deciles[2], 2, 
+                  ifelse(x<deciles[3], 3, 
+                         ifelse(x<deciles[4], 4, 
+                                ifelse(x<deciles[5], 5, 
+                                       ifelse(x<deciles[6], 6, 
+                                              ifelse(x<deciles[7], 7, 
+                                                     ifelse(x<deciles[8], 8, 
+                                                            ifelse(x<deciles[9], 9, 10 
+                                                            )))))))))) 
+} 
+
+## deciling 
+Train_Data$deciles <- decile(Train_Data$predict.score[,2])
+
+
+## Ranking code 
+##install.packages("data.table") 
+##install.packages("scales") 
+library(data.table) 
+library(scales) 
+tmp_DT = data.table(Train_Data) 
+rank <- tmp_DT[, list( 
+  cnt = length(Personal.Loan),  
+  cnt_resp = sum(Personal.Loan),  
+  cnt_non_resp = sum(Personal.Loan == 0)) ,  
+  by=deciles][order(-deciles)] 
+rank$rrate <- round(rank$cnt_resp / rank$cnt, 4); 
+rank$cum_resp <- cumsum(rank$cnt_resp) 
+rank$cum_non_resp <- cumsum(rank$cnt_non_resp) 
+rank$cum_rel_resp <- round(rank$cum_resp / sum(rank$cnt_resp), 4); 
+rank$cum_rel_non_resp <- round(rank$cum_non_resp /  
+                                 sum(rank$cnt_non_resp),4); 
+rank$ks <- abs(rank$cum_rel_resp - rank$cum_rel_non_resp); 
+rank$rrate <- percent(rank$rrate) 
+rank$cum_rel_resp <- percent(rank$cum_rel_resp) 
+rank$cum_rel_non_resp <- percent(rank$cum_rel_non_resp)
+
+View(rank)
+
+
+```
+
+Validate the sample
+
+```{R}
+library(ROCR) 
+pred <- prediction(Train_Data$predict.score[,2], 
+                   Train_Data$Personal.Loan) 
+perf <- performance(pred, "tpr", "fpr") 
+KS <- max(attr(perf, 'y.values')[[1]]-attr(perf, 
+                                           'x.values')[[1]]) 
+auc <- performance(pred,"auc");  
+auc <- as.numeric(auc@y.values) 
+auc
+
+## Computing Gini Index 
+library(ineq) 
+gini = ineq(Train_Data$predict.score[,2], type="Gini") 
+
+gini
+
+##with(Train_Data, table(Train_Data$Personal.Loan, Train_Data$predict.class))
+
+##ks == 19+27/3500
+##[1] 19.00771
+
+tree.path <- path.rpart (pruned_tree, node = c(2, 12)) 
+
+```
+
+Model performance on Holdout sample
+
+
+```
+## R Markdown
+
+Model performance on holdout sample
+##Deciling
+##Test_Data$deciles <- decile(Test_Data$predict.score[,2])
+
+```{R}
+Test_Data$predict.class <- predict(pruned_tree, Test_Data, type="class") 
+Test_Data$predict.score <- predict(pruned_tree, Test_Data, type = "prob")
+
+tmp_DT = data.table(Test_Data) 
+h_rank <- tmp_DT[, list( 
+  cnt = length(Personal.Loan),  
+  cnt_resp = sum(Personal.Loan),  
+  cnt_non_resp = sum(Personal.Loan == 0)) ,  
+  by=deciles][order(-deciles)]
+
+h_rank$rrate <- round(h_rank$cnt_resp / h_rank$cnt,4); 
+h_rank$cum_resp <- cumsum(h_rank$cnt_resp) 
+h_rank$cum_non_resp <- cumsum(h_rank$cnt_non_resp) 
+h_rank$cum_rel_resp <- round(h_rank$cum_resp / sum(h_rank$cnt_resp),4); 
+h_rank$cum_rel_non_resp <- round(h_rank$cum_non_resp / sum(h_rank$cnt_non_resp),4); 
+h_rank$ks <- abs(h_rank$cum_rel_resp - h_rank$cum_rel_non_resp)*100; 
+h_rank$rrate <- percent(h_rank$rrate) 
+h_rank$cum_rel_resp <- percent(h_rank$cum_rel_resp) 
+h_rank$cum_rel_non_resp <- percent(h_rank$cum_rel_non_resp) 
+
+View(h_rank) 
+
+##Hold-out | KS,AUC, Gini, Classification error
+
+pred <- prediction(Test_Data$predict.score[,2], 
+                   Test_Data$Personal.Loan) 
+perf <- performance(pred, "tpr", "fpr") 
+KS <- max(attr(perf, 'y.values')[[1]]-attr(perf, 
+                                           'x.values')[[1]]) 
+auc <- performance(pred,"auc");  
+auc <- as.numeric(auc@y.values) 
+auc
+
+## Computing Gini Index 
+library(ineq) 
+gini = ineq(Test_Data$predict.score[,2], type="Gini") 
+
+gini
+```
